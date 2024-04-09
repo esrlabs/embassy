@@ -98,6 +98,9 @@ quote = "1.0.15"
 #stm32-metapac = { version = "15", default-features = false, features = ["metadata"]}
 stm32-metapac = { git = "https://github.com/embassy-rs/stm32-data-generated", tag = "stm32-data-2b7ec569a5510c324693f0515ac8ea20b12917a9", default-features = false, features = ["metadata"]}
 
+[patch."https://github.com/embassy-rs/stm32-data-generated/stm32-metapac"]
+stm32-data-generated = {path = "../../stm32-data/build/stm32-metapac"}
+
 [features]
 default = ["rt"]
 
