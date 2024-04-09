@@ -735,7 +735,9 @@ trait RegsExt {
 
 impl RegsExt for Regs {
     fn tx_ptr<W>(&self) -> *mut W {
-        #[cfg(not(any(spi_v3, spi_v4, spi_v5)))]
+        #[cfg(spi_v1)]
+        let dr = self.dr();
+        #[cfg(spi_v2)]
         let dr = self.dr16();
         #[cfg(any(spi_v3, spi_v4, spi_v5))]
         let dr = self.txdr32();
@@ -743,7 +745,9 @@ impl RegsExt for Regs {
     }
 
     fn rx_ptr<W>(&self) -> *mut W {
-        #[cfg(not(any(spi_v3, spi_v4, spi_v5)))]
+        #[cfg(spi_v1)]
+        let dr = self.dr();
+        #[cfg(spi_v2)]
         let dr = self.dr16();
         #[cfg(any(spi_v3, spi_v4, spi_v5))]
         let dr = self.rxdr32();
@@ -815,6 +819,9 @@ fn spin_until_rx_ready(regs: Regs) -> Result<(), Error> {
 fn flush_rx_fifo(regs: Regs) {
     #[cfg(not(any(spi_v3, spi_v4, spi_v5)))]
     while regs.sr().read().rxne() {
+        #[cfg(spi_v1)]
+        let _ = regs.dr().read();
+        #[cfg(spi_v2)]
         let _ = regs.dr16().read();
     }
     #[cfg(any(spi_v3, spi_v4, spi_v5))]
