@@ -4,16 +4,33 @@
 // Those MCUs have a different HSEM implementation (Secure semaphore lock support,
 // Privileged / unprivileged semaphore lock support, Semaphore lock protection via semaphore attribute),
 // which is not yet supported by this code.
-use embassy_hal_internal::{into_ref, PeripheralRef};
+use core::future::poll_fn;
+use core::marker::PhantomData;
+use core::task::Poll;
 
 use crate::rcc::RccPeripheral;
-use crate::{pac, Peripheral};
+use crate::{interrupt, pac, peripherals, Peripheral};
+use embassy_hal_internal::{into_ref, PeripheralRef};
+use embassy_sync::waitqueue::AtomicWaker;
+
+static HSEM_WAKER: AtomicWaker = AtomicWaker::new();
 
 /// HSEM error.
 #[derive(Debug)]
 pub enum HsemError {
     /// Locking the semaphore failed.
     LockFailed,
+}
+
+/// HSEM interrupt handler.
+pub struct InterruptHandler<T: Instance> {
+    _phantom: PhantomData<T>,
+}
+
+impl<T: Instance> interrupt::typelevel::Handler<T::Interrupt> for InterruptHandler<T> {
+    unsafe fn on_interrupt() {
+        HSEM_WAKER.wake();
+    }
 }
 
 /// CPU core.
@@ -72,14 +89,17 @@ fn core_id_to_index(core: CoreId) -> usize {
 
 /// HSEM driver
 pub struct HardwareSemaphore<'d, T: Instance> {
-    _peri: PeripheralRef<'d, T>,
+    _inner: PeripheralRef<'d, T>,
 }
 
 impl<'d, T: Instance> HardwareSemaphore<'d, T> {
     /// Creates a new HardwareSemaphore instance.
-    pub fn new(peripheral: impl Peripheral<P = T> + 'd) -> Self {
+    pub fn new(
+        peripheral: impl Peripheral<P = T> + 'd,
+        _irq: impl interrupt::typelevel::Binding<T::Interrupt, InterruptHandler<T>> + 'd,
+    ) -> Self {
         into_ref!(peripheral);
-        HardwareSemaphore { _peri: peripheral }
+        HardwareSemaphore { _inner: peripheral }
     }
 
     /// Locks the semaphore.
@@ -163,6 +183,23 @@ impl<'d, T: Instance> HardwareSemaphore<'d, T> {
             .icr(core_id_to_index(core_id))
             .write(|w| w.set_isc(sem_x, false));
     }
+
+    /// Waits for the semaphore to be unlocked.
+    pub async fn wait_unlocked(&mut self, sem_id: u8) -> Result<(), HsemError> {
+        if !self.is_semaphore_locked(sem_id) {
+            return Ok(());
+        }
+
+        poll_fn(|cx| {
+            HSEM_WAKER.register(cx.waker());
+            if !self.is_semaphore_locked(sem_id) {
+                Poll::Ready(Ok(()))
+            } else {
+                Poll::Pending
+            }
+        })
+        .await
+    }
 }
 
 trait SealedInstance {
@@ -171,11 +208,25 @@ trait SealedInstance {
 
 /// HSEM instance trait.
 #[allow(private_bounds)]
-pub trait Instance: SealedInstance + RccPeripheral + Send + 'static {}
+pub trait Instance: SealedInstance + Peripheral<P = Self> + RccPeripheral + Send + 'static {
+    /// Interrupt for this HSEM instance.
+    type Interrupt: interrupt::typelevel::Interrupt;
+}
 
-impl SealedInstance for crate::peripherals::HSEM {
+/// HSEM peripheral instances.
+impl Instance for peripherals::HSEM {
+    // TODO: add support for more chips
+    // maybe move to identification of the core for which the code
+    // gets compiled into the build.rs
+    #[cfg(any(feature = "stm32h747zi-cm7"))]
+    type Interrupt = crate::interrupt::typelevel::HSEM2;
+
+    #[cfg(any(feature = "stm32h747zi-cm4"))]
+    type Interrupt = crate::interrupt::typelevel::HSEM1;
+}
+
+impl SealedInstance for peripherals::HSEM {
     fn regs() -> crate::pac::hsem::Hsem {
         crate::pac::HSEM
     }
 }
-impl Instance for crate::peripherals::HSEM {}
