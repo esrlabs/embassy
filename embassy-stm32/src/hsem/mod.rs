@@ -177,6 +177,11 @@ impl<'d, T: Instance> HardwareSemaphore<'d, T> {
             .modify(|w| w.set_ise(sem_x, enable));
     }
 
+    /// Gets the interrupt enable bit for the semaphore.
+    pub fn is_interrupt_enabled(&mut self, core_id: CoreId, sem_x: usize) -> bool {
+        T::regs().ier(core_id_to_index(core_id)).read().ise(sem_x)
+    }
+
     /// Clears the interrupt flag for the semaphore.
     pub fn clear_interrupt(&mut self, core_id: CoreId, sem_x: usize) {
         T::regs()
