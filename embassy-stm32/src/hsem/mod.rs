@@ -224,10 +224,10 @@ impl Instance for peripherals::HSEM {
     // maybe move to identification of the core for which the code
     // gets compiled into the build.rs
     #[cfg(any(feature = "stm32h747zi-cm7"))]
-    type Interrupt = crate::interrupt::typelevel::HSEM2;
+    type Interrupt = crate::interrupt::typelevel::HSEM1;
 
     #[cfg(any(feature = "stm32h747zi-cm4"))]
-    type Interrupt = crate::interrupt::typelevel::HSEM1;
+    type Interrupt = crate::interrupt::typelevel::HSEM2;
 }
 
 impl SealedInstance for peripherals::HSEM {
