@@ -366,3 +366,13 @@ pub fn init(config: Config) -> Peripherals {
         p
     })
 }
+
+/// Initialize the `embassy-stm32` HAL for core1
+///
+/// This returns the peripheral singletons that can be used for creating drivers.
+///
+/// This should only be called on the second core of a multicore SoC. The RCC, clocks and
+/// PWR initialization should be handled by core0.
+pub fn init_core1() -> Peripherals {
+    critical_section::with(|cs| Peripherals::take_with_cs(cs))
+}
