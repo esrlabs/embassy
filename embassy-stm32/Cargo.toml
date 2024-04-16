@@ -104,6 +104,8 @@ stm32-metapac = { path = "../../stm32-data/build/stm32-metapac" }
 [features]
 default = ["rt"]
 
+secondary-core = []
+
 ## Enable `stm32-metapac`'s `rt` feature
 rt = ["stm32-metapac/rt"]
 
