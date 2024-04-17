@@ -29,6 +29,17 @@ pub struct InterruptHandler<T: Instance> {
 
 impl<T: Instance> interrupt::typelevel::Handler<T::Interrupt> for InterruptHandler<T> {
     unsafe fn on_interrupt() {
+        let c = match get_current_coreid() {
+            CoreId::Core0 => 0,
+            CoreId::Core1 => 1,
+        };
+        // Get the list of masked freed semaphores
+        let statusreg = T::regs().misr(c).read().0;
+        // Disable Interrupts
+        T::regs().ier(c).modify(|w| w.0 = w.0 & !statusreg);
+        // Clear Flags
+        T::regs().icr(c).modify(|w| w.0 = w.0 | statusreg);
+
         HSEM_WAKER.wake();
     }
 }
