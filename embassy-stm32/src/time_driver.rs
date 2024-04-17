@@ -273,17 +273,28 @@ embassy_time_driver::time_driver_impl!(static DRIVER: RtcDriver = RtcDriver {
 });
 
 impl RtcDriver {
+    /// Initialize the RTC driver on core 0
     fn init(&'static self, cs: critical_section::CriticalSection) {
-        let r = regs_gp16();
-
         <T as SealedRccPeripheral>::enable_and_reset_with_cs(cs);
 
         let timer_freq = T::frequency();
+        self.init_internal(timer_freq.0);
+    }
+
+    /// Initialize the RTC driver on core 1
+    fn init_core1(&'static self, cs: critical_section::CriticalSection, timer_freq: u32) {
+        <T as SealedRccPeripheral>::enable_and_reset_with_cs(cs);
+        self.init_internal(timer_freq);
+    }
+
+    /// Core agnostic initialization
+    fn init_internal(&'static self, timer_freq: u32) {
+        let r = regs_gp16();
 
         r.cr1().modify(|w| w.set_cen(false));
         r.cnt().write(|w| w.set_cnt(0));
 
-        let psc = timer_freq.0 / TICK_HZ as u32 - 1;
+        let psc = timer_freq / TICK_HZ as u32 - 1;
         let psc: u16 = match psc.try_into() {
             Err(_) => panic!("psc division overflow: {}", psc),
             Ok(n) => n,
@@ -600,4 +611,8 @@ pub(crate) fn get_driver() -> &'static RtcDriver {
 
 pub(crate) fn init(cs: CriticalSection) {
     DRIVER.init(cs)
+}
+
+pub(crate) fn init_core1(cs: CriticalSection, frequency: u32) {
+    DRIVER.init_core1(cs, frequency)
 }

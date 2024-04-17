@@ -373,6 +373,11 @@ pub fn init(config: Config) -> Peripherals {
 ///
 /// This should only be called on the second core of a multicore SoC. The RCC, clocks and
 /// PWR initialization should be handled by core0.
-pub fn init_core1() -> Peripherals {
-    critical_section::with(|cs| Peripherals::take_with_cs(cs))
+pub fn init_core1(timer_freq: u32) -> Peripherals {
+    critical_section::with(|cs| {
+        #[cfg(feature = "_time-driver")]
+        time_driver::init_core1(cs, timer_freq);
+
+        Peripherals::take_with_cs(cs)
+    })
 }
