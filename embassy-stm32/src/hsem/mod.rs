@@ -33,12 +33,13 @@ impl<T: Instance> interrupt::typelevel::Handler<T::Interrupt> for InterruptHandl
             CoreId::Core0 => 0,
             CoreId::Core1 => 1,
         };
+
         // Get the list of masked freed semaphores
         let statusreg = T::regs().misr(c).read().0;
         // Disable Interrupts
         T::regs().ier(c).modify(|w| w.0 = w.0 & !statusreg);
         // Clear Flags
-        T::regs().icr(c).modify(|w| w.0 = w.0 | statusreg);
+        T::regs().icr(c).modify(|w| w.0 = statusreg);
 
         HSEM_WAKER.wake();
     }
@@ -139,7 +140,7 @@ impl<'d, T: Instance> HardwareSemaphore<'d, T> {
     pub fn one_step_lock(&mut self, sem_id: u8) -> Result<(), HsemError> {
         let reg = T::regs().rlr(sem_id as usize).read();
         match (reg.lock(), reg.coreid() == get_current_coreid() as u8, reg.procid()) {
-            (false, true, 0) => Ok(()),
+            (true, true, 0) => Ok(()),
             _ => Err(HsemError::LockFailed),
         }
     }
@@ -182,29 +183,33 @@ impl<'d, T: Instance> HardwareSemaphore<'d, T> {
     }
 
     /// Sets the interrupt enable bit for the semaphore.
-    pub fn enable_interrupt(&mut self, core_id: CoreId, sem_x: usize, enable: bool) {
+    pub fn enable_interrupt(&mut self, core_id: CoreId, sem_x: u8, enable: bool) {
         T::regs()
             .ier(core_id_to_index(core_id))
-            .modify(|w| w.set_ise(sem_x, enable));
+            .modify(|w| w.set_ise(sem_x as usize, enable));
     }
 
     /// Gets the interrupt enable bit for the semaphore.
-    pub fn is_interrupt_enabled(&mut self, core_id: CoreId, sem_x: usize) -> bool {
-        T::regs().ier(core_id_to_index(core_id)).read().ise(sem_x)
+    pub fn is_interrupt_enabled(&mut self, core_id: CoreId, sem_x: u8) -> bool {
+        T::regs().ier(core_id_to_index(core_id)).read().ise(sem_x as usize)
     }
 
     /// Clears the interrupt flag for the semaphore.
-    pub fn clear_interrupt(&mut self, core_id: CoreId, sem_x: usize) {
+    pub fn clear_interrupt(&mut self, core_id: CoreId, sem_x: u8) {
         T::regs()
             .icr(core_id_to_index(core_id))
-            .write(|w| w.set_isc(sem_x, false));
+            .write(|w| w.set_isc(sem_x as usize, false));
     }
 
-    /// Waits for the semaphore to be unlocked.
+    /// Enables interrupts for the semaphore and waits for the semaphore to be unlocked.
+    /// In case the semaphore is already unlocked, the function returns immediately and
+    /// does not enable the interrupt.
     pub async fn wait_unlocked(&mut self, sem_id: u8) -> Result<(), HsemError> {
         if !self.is_semaphore_locked(sem_id) {
             return Ok(());
         }
+
+        self.enable_interrupt(get_current_coreid(), sem_id, true);
 
         poll_fn(|cx| {
             HSEM_WAKER.register(cx.waker());
@@ -234,10 +239,10 @@ impl Instance for peripherals::HSEM {
     // TODO: add support for more chips
     // maybe move to identification of the core for which the code
     // gets compiled into the build.rs
-    #[cfg(any(feature = "stm32h747zi-cm7"))]
+    #[cfg(any(feature = "stm32h747zi-cm7", feature = "stm32h755zi-cm7"))]
     type Interrupt = crate::interrupt::typelevel::HSEM1;
 
-    #[cfg(any(feature = "stm32h747zi-cm4"))]
+    #[cfg(any(feature = "stm32h747zi-cm4", feature = "stm32h755zi-cm4"))]
     type Interrupt = crate::interrupt::typelevel::HSEM2;
 }
 
