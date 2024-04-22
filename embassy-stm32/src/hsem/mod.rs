@@ -137,12 +137,32 @@ impl<'d, T: Instance> HardwareSemaphore<'d, T> {
     /// Locks the semaphore.
     /// The 1-step procedure consists in a read to lock and check the semaphore in a single step,
     /// carried out from the HSEM_RLRx register.
-    pub fn one_step_lock(&mut self, sem_id: u8) -> Result<(), HsemError> {
+    pub fn one_step_lock(&mut self, sem_id: u8) -> bool {
         let reg = T::regs().rlr(sem_id as usize).read();
         match (reg.lock(), reg.coreid() == get_current_coreid() as u8, reg.procid()) {
-            (true, true, 0) => Ok(()),
-            _ => Err(HsemError::LockFailed),
+            (true, true, 0) => true,
+            _ => false,
         }
+    }
+
+    /// Locks the semaphore. If the semaphore is already locked,
+    /// the function will return a future
+    pub async fn lock(&mut self, sem_id: u8) -> bool {
+        if !self.is_semaphore_locked(sem_id) {
+            return self.one_step_lock(sem_id);
+        }
+
+        self.enable_interrupt(get_current_coreid(), sem_id, true);
+
+        poll_fn(|cx| {
+            HSEM_WAKER.register(cx.waker());
+            if !self.is_semaphore_locked(sem_id) {
+                Poll::Ready(self.one_step_lock(sem_id))
+            } else {
+                Poll::Pending
+            }
+        })
+        .await
     }
 
     /// Unlocks the semaphore.
