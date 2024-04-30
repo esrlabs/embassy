@@ -98,8 +98,8 @@ quote = "1.0.15"
 #stm32-metapac = { version = "15", default-features = false, features = ["metadata"]}
 stm32-metapac = { git = "https://github.com/embassy-rs/stm32-data-generated", tag = "stm32-data-1f79295b80000c54943d5c6b6ea35866f905f99b", default-features = false, features = ["metadata"]}
 
-[patch."https://github.com/embassy-rs/stm32-data-generated"]
-stm32-metapac = { path = "../../stm32-data/build/stm32-metapac" }
+# [patch."https://github.com/embassy-rs/stm32-data-generated"]
+# stm32-metapac = { path = "../../stm32-data/build/stm32-metapac" }
 
 [features]
 default = ["rt"]
