@@ -117,7 +117,7 @@ impl<'d, T: Instance> HardwareSemaphore<'d, T> {
     /// Locks the semaphore.
     /// The 2-step lock procedure consists in a write to lock the semaphore, followed by a read to
     /// check if the lock has been successful, carried out from the HSEM_Rx register.
-    pub fn two_step_lock(&mut self, sem_id: u8, process_id: u8) -> Result<(), HsemError> {
+    pub fn two_step_lock(&mut self, sem_id: u8, process_id: u8) -> bool {
         T::regs().r(sem_id as usize).write(|w| {
             w.set_procid(process_id);
             w.set_coreid(get_current_coreid() as u8);
@@ -129,8 +129,8 @@ impl<'d, T: Instance> HardwareSemaphore<'d, T> {
             reg.coreid() == get_current_coreid() as u8,
             reg.procid() == process_id,
         ) {
-            (true, true, true) => Ok(()),
-            _ => Err(HsemError::LockFailed),
+            (true, true, true) => true,
+            _ => false,
         }
     }
 
