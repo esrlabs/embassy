@@ -50,7 +50,6 @@ impl<T: Instance> interrupt::typelevel::Handler<T::Interrupt> for InterruptHandl
 /// chip family (i.e. stm32h747 see rm0399 table 95)
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 #[repr(u8)]
-#[derive(defmt::Format)]
 pub enum CoreId {
     #[cfg(any(stm32h745, stm32h747, stm32h755, stm32h757))]
     /// Cortex-M7, core 1.
